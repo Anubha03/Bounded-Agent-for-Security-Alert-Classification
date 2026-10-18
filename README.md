@@ -100,3 +100,7 @@ src/hw1_agent/
   report.py      report.json build + schema validation
 runs/            committed outputs of the six runs (report.json, trace.jsonl)
 ```
+
+## Project report
+
+[Read the project report (PDF)](reports/Bounded_Agent_Design_Report.pdf)
