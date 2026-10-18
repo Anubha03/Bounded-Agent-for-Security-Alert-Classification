@@ -1,0 +1,17 @@
+{"step": 1, "ts": 1790300000.8, "run_id": "owasp-cutoff", "alert_id": null, "kind": "tool_request", "tool": "bandit", "args": {"paths": ["testcode/BenchmarkTest000*.py"], "exclude": [], "min_severity": "MEDIUM"}}
+{"step": 2, "ts": 1790300001.6, "run_id": "owasp-cutoff", "alert_id": null, "kind": "tool_result", "tool": "bandit", "ok": true, "alerts": 3}
+{"step": 3, "ts": 1790300002.4, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "routing", "decision": "triage", "by": "runtime"}
+{"step": 4, "ts": 1790300003.2, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "model_call", "role": "classifier", "model": "claude-sonnet-5", "usage": {"input": 5210, "output": 190}}
+{"step": 5, "ts": 1790300004.0, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "routing", "decision": "tools", "by": "model"}
+{"step": 6, "ts": 1790300004.8, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "tool_request", "tool": "read_file", "args": {"path": "testcode/BenchmarkTest00073.py", "start_line": 45, "end_line": 58}}
+{"step": 7, "ts": 1790300005.6, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "tool_result", "tool": "read_file", "ok": true}
+{"step": 8, "ts": 1790300006.4, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "model_call", "role": "classifier", "model": "claude-sonnet-5", "usage": {"input": 6120, "output": 160}}
+{"step": 9, "ts": 1790300007.2, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "routing", "decision": "submit", "by": "model"}
+{"step": 10, "ts": 1790300008.0, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00073-py-54-B307", "kind": "state_change", "node": "submit", "alert_status": "classified", "label": 0}
+{"step": 11, "ts": 1790300008.8, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00074-py-51-B102", "kind": "routing", "decision": "triage", "by": "runtime"}
+{"step": 12, "ts": 1790300009.6, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00074-py-51-B102", "kind": "model_call", "role": "classifier", "model": "claude-sonnet-5", "usage": {"input": 6776, "output": 1024}}
+{"step": 13, "ts": 1790300010.4, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00074-py-51-B102", "kind": "routing", "decision": "error", "by": "runtime", "reason": "reply could not be parsed as a label"}
+{"step": 14, "ts": 1790300011.2, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00074-py-51-B102", "kind": "state_change", "node": "submit", "alert_status": "error", "label": null}
+{"step": 15, "ts": 1790300012.0, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00078-py-53-B301", "kind": "routing", "decision": "budget_exhausted", "by": "runtime", "remaining": 520, "required": 6800}
+{"step": 16, "ts": 1790300012.8, "run_id": "owasp-cutoff", "alert_id": "owasp-BenchmarkTest00078-py-53-B301", "kind": "state_change", "node": "budget", "alert_status": "budget_exhausted", "label": null}
+{"step": 17, "ts": 1790300013.6, "run_id": "owasp-cutoff", "alert_id": null, "kind": "terminal", "status": "budget_exhausted", "usage_total": {"input": 18106, "output": 1374}}

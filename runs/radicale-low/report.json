@@ -1,0 +1,182 @@
+{
+  "target": {
+    "input": "targets/radicale",
+    "commit": "eff8027f3dc4910be1659ee71f4b4a454ade5a8c"
+  },
+  "scan": {
+    "bandit_version": "1.9.4",
+    "min_severity": "MEDIUM",
+    "alert_count": 10
+  },
+  "budget": {
+    "max_tokens": 50000,
+    "used_tokens": 37278,
+    "exhausted": true
+  },
+  "run_id": "radicale-20261010T202502-98d451",
+  "terminal_status": "budget_exhausted",
+  "model": {
+    "provider": "openai",
+    "name": "gpt-5.4-mini"
+  },
+  "alerts": [
+    {
+      "alert_id": "radicale-radicale-auth-oauth2.py-60-B113",
+      "test_id": "B113",
+      "path": "radicale/auth/oauth2.py",
+      "line": 60,
+      "severity": "MEDIUM",
+      "confidence": "LOW",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged `requests.post` call at lines 60-62 uses `self._endpoint`, which is a configuration value checked for presence in `__init__` and not attacker-controlled. Although no explicit timeout is passed, this code is only part of an OAuth2 login flow contacting a trusted token endpoint, so the Bandit warning is about robustness rather than a security vulnerability in this repository.",
+      "evidence": [
+        {
+          "path": "radicale/auth/oauth2.py",
+          "start_line": 36,
+          "end_line": 42
+        },
+        {
+          "path": "radicale/auth/oauth2.py",
+          "start_line": 50,
+          "end_line": 62
+        }
+      ]
+    },
+    {
+      "alert_id": "radicale-radicale-hook-email-__init__.py-227-B324",
+      "test_id": "B324",
+      "path": "radicale/hook/email/__init__.py",
+      "line": 227,
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged SHA1 use is only in `event_details_other_than_attendees_changed()` to hash two in-memory dictionaries and compare them for equality (lines 222-250). This is a non-security comparison helper used to decide whether to send email notifications, and the hash output is not used for integrity, authentication, or any attacker-visible security boundary. The surrounding call site only uses the boolean result to choose whether to notify unaltered attendees (lines 1092-1098).",
+      "evidence": [
+        {
+          "path": "radicale/hook/email/__init__.py",
+          "start_line": 222,
+          "end_line": 250
+        },
+        {
+          "path": "radicale/hook/email/__init__.py",
+          "start_line": 1092,
+          "end_line": 1098
+        }
+      ]
+    },
+    {
+      "alert_id": "radicale-radicale-sharing-files.py-131-B301",
+      "test_id": "B301",
+      "path": "radicale/sharing/files.py",
+      "line": 131,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged `pickle.load(fb)` at line 131 only deserializes sharing records from `sharing_config_file`, which is built from the server's own storage path and an encoded `PathOrToken` value under the storage lock. The code immediately rejects entries whose stored `version` does not match `DB_VERSION` and then uses the resulting row only as a local database record; there is no evidence here of attacker-controlled pickle bytes being accepted from a network request.",
+      "evidence": [
+        {
+          "path": "radicale/sharing/files.py",
+          "start_line": 89,
+          "end_line": 105
+        },
+        {
+          "path": "radicale/sharing/files.py",
+          "start_line": 127,
+          "end_line": 156
+        },
+        {
+          "path": "radicale/sharing/files.py",
+          "start_line": 180,
+          "end_line": 233
+        }
+      ]
+    },
+    {
+      "alert_id": "radicale-radicale-sharing-files.py-208-B301",
+      "test_id": "B301",
+      "path": "radicale/sharing/files.py",
+      "line": 208,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "radicale-radicale-sharing-files.py-316-B301",
+      "test_id": "B301",
+      "path": "radicale/sharing/files.py",
+      "line": 316,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "radicale-radicale-sharing-files.py-374-B301",
+      "test_id": "B301",
+      "path": "radicale/sharing/files.py",
+      "line": 374,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "radicale-radicale-storage-multifilesystem-cache.py-109-B301",
+      "test_id": "B301",
+      "path": "radicale/storage/multifilesystem/cache.py",
+      "line": 109,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "radicale-radicale-storage-multifilesystem-history.py-53-B301",
+      "test_id": "B301",
+      "path": "radicale/storage/multifilesystem/history.py",
+      "line": 53,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "radicale-radicale-storage-multifilesystem-lock.py-102-B602",
+      "test_id": "B602",
+      "path": "radicale/storage/multifilesystem/lock.py",
+      "line": 102,
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "radicale-radicale-storage-multifilesystem-sync.py-79-B301",
+      "test_id": "B301",
+      "path": "radicale/storage/multifilesystem/sync.py",
+      "line": 79,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    }
+  ]
+}

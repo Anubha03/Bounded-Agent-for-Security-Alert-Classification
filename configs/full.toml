@@ -1,0 +1,21 @@
+# Full-budget config. Graders swap in each target's [scan] block and keep the rest.
+[scan]
+paths = ["radicale"]
+exclude = ["radicale/tests"]
+min_severity = "MEDIUM"
+bandit_version = "1.9.4"
+
+[model]
+provider = "openai"
+name = "gpt-5.4-mini"
+reasoning_effort = "none"     # gpt-5.4-mini needs "none" to use tools on Chat Completions
+
+[budget]
+max_tokens = 1500000          # whole run, all alerts: sum of provider-reported input + output
+output_allowance = 4096       # max_completion_tokens per call, reasoning included
+max_steps = 600               # safety cap on model calls + tool runs
+
+[agent]
+max_turns_per_alert = 8       # the last turn forces submit_verdict
+no_progress_limit = 4         # stop after this many turns in a row with nothing new
+request_timeout_s = 120

@@ -1,0 +1,395 @@
+{
+  "target": {
+    "input": "targets/owasp-benchmark-python",
+    "commit": "f1291485808b66e20ddb6b01b10dc71b3df8c8ba"
+  },
+  "scan": {
+    "bandit_version": "1.9.4",
+    "min_severity": "MEDIUM",
+    "alert_count": 18
+  },
+  "budget": {
+    "max_tokens": 50000,
+    "used_tokens": 44075,
+    "exhausted": true
+  },
+  "run_id": "owasp-benchmark-python-20261010T202756-c54ea9",
+  "terminal_status": "budget_exhausted",
+  "model": {
+    "provider": "openai",
+    "name": "gpt-5.4-mini"
+  },
+  "alerts": [
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00011.py-47-B608",
+      "test_id": "B608",
+      "path": "testcode/BenchmarkTest00011.py",
+      "line": 47,
+      "severity": "MEDIUM",
+      "confidence": "LOW",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged line only builds a constant SQL string: `SELECT username from USERS where password = ?` on line 47. The query is executed with `cur.execute(sql, (bar,))` on line 50, so the user-controlled cookie value is passed as a parameter rather than concatenated into SQL; this is a safe parameterized query, not a SQL injection sink. Although `bar` originates from a cookie on line 39, it does not reach the SQL text itself.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00011.py",
+          "start_line": 39,
+          "end_line": 50
+        },
+        {
+          "path": "testcode/BenchmarkTest00011.py",
+          "start_line": 47,
+          "end_line": 47
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00012.py-48-B608",
+      "test_id": "B608",
+      "path": "testcode/BenchmarkTest00012.py",
+      "line": 48,
+      "severity": "MEDIUM",
+      "confidence": "LOW",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged line 48 only builds a constant SQL template, and the query is executed with a parameter tuple in line 51 (`cur.execute(sql, (bar,))`), so the user-controlled cookie-derived value is not concatenated into the SQL string. Although `bar` is derived from a cookie via lines 39-44, it is passed as a bound parameter rather than interpolated into the statement, which neutralizes SQL injection risk here.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00012.py",
+          "start_line": 39,
+          "end_line": 44
+        },
+        {
+          "path": "testcode/BenchmarkTest00012.py",
+          "start_line": 48,
+          "end_line": 51
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00013.py-55-B314",
+      "test_id": "B314",
+      "path": "testcode/BenchmarkTest00013.py",
+      "line": 55,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged sink is `ET.parse(...)` on line 55, but it only parses the fixed repository file `helpers.utils.RES_DIR}/employees.xml`, not attacker-controlled XML. The only untrusted input in this function is `param` from a cookie (line 39), which is used later in an XPath string on line 56; it does not influence the XML parser call. Therefore this Bandit XML-parsing alert is not a vulnerability in this code path.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00013.py",
+          "start_line": 39,
+          "end_line": 39
+        },
+        {
+          "path": "testcode/BenchmarkTest00013.py",
+          "start_line": 55,
+          "end_line": 56
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00014.py-56-B314",
+      "test_id": "B314",
+      "path": "testcode/BenchmarkTest00014.py",
+      "line": 56,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged sink is `ET.parse(f'{helpers.utils.RES_DIR}/employees.xml')` on line 56, but it parses a fixed repository resource path, not user-controlled XML input. The only attacker-influenced value is `bar` from a cookie, and it is used later in an XPath query on line 57, not in the XML parser. Therefore this Bandit XML parsing warning is not a vulnerability in this code path.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00014.py",
+          "start_line": 45,
+          "end_line": 58
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00015.py-56-B314",
+      "test_id": "B314",
+      "path": "testcode/BenchmarkTest00015.py",
+      "line": 56,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged `ET.parse` call on line 56 parses a fixed repository file, `helpers.utils.RES_DIR}/employees.xml`, not attacker-controlled input. The only untrusted value in this flow is `bar` from a cookie on line 39, but it is used later in an XPath query, not as XML content passed to `parse`.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00015.py",
+          "start_line": 39,
+          "end_line": 43
+        },
+        {
+          "path": "testcode/BenchmarkTest00015.py",
+          "start_line": 45,
+          "end_line": 58
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00016.py-58-B314",
+      "test_id": "B314",
+      "path": "testcode/BenchmarkTest00016.py",
+      "line": 58,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The flagged call at line 58 parses a fixed repository file, `employees.xml`, not attacker-controlled XML. The only untrusted input in this function is `bar` from a cookie, but it is used later in an XPath query and is not passed to `ET.parse`; therefore the B314 XML parsing warning is not exercised by untrusted data here.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00016.py",
+          "start_line": 38,
+          "end_line": 45
+        },
+        {
+          "path": "testcode/BenchmarkTest00016.py",
+          "start_line": 47,
+          "end_line": 60
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00017.py-49-B317",
+      "test_id": "B317",
+      "path": "testcode/BenchmarkTest00017.py",
+      "line": 49,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "The flagged sink is xml.sax.make_parser at line 49, and the resulting parser is used to parse user-controlled XML in line 52. The XML string comes from request.cookies['BenchmarkTest00017'] on line 39, so an attacker can supply arbitrary XML via the cookie and trigger XML parser attacks. There is no defusing or validation before parseString() uses the parser.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00017.py",
+          "start_line": 39,
+          "end_line": 52
+        },
+        {
+          "path": "testcode/BenchmarkTest00017.py",
+          "start_line": 66,
+          "end_line": 69
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00017.py-52-B318",
+      "test_id": "B318",
+      "path": "testcode/BenchmarkTest00017.py",
+      "line": 52,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "Line 52 passes `bar` directly into `xml.dom.minidom.parseString`, which Bandit flags as unsafe XML parsing. `bar` is assigned from `param` on line 43, and `param` comes from the `BenchmarkTest00017` request cookie on line 39, so attacker-controlled input can reach the XML parser. No sanitization or defusedxml replacement is shown on this path.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00017.py",
+          "start_line": 39,
+          "end_line": 43
+        },
+        {
+          "path": "testcode/BenchmarkTest00017.py",
+          "start_line": 48,
+          "end_line": 52
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00054.py-64-B324",
+      "test_id": "B324",
+      "path": "testcode/BenchmarkTest00054.py",
+      "line": 64,
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "Line 64 creates an MD5 digest with `hashlib.new('md5')`, which is the weak hash pattern Bandit flags. The hashed data is derived from `request.cookies.get(\"BenchmarkTest00054\", ...)` at line 39 and flows through `param -> bar -> input` (lines 39-55), so attacker-controlled input is being processed by the insecure hash. Even though the code stores the digest rather than using it for verification, the alert is still a real use of MD5 in a security-relevant context.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00054.py",
+          "start_line": 39,
+          "end_line": 55
+        },
+        {
+          "path": "testcode/BenchmarkTest00054.py",
+          "start_line": 64,
+          "end_line": 69
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00057.py-65-B324",
+      "test_id": "B324",
+      "path": "testcode/BenchmarkTest00057.py",
+      "line": 65,
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The alert flags `hashlib.md5()` at line 65, but in this test code it is used only to hash the local `input` value and store the digest in `passwordFile.txt` (lines 65-70), not to verify integrity, authenticate users, or protect a security boundary. The code also explicitly treats this as benchmark/test code (`testcode/BenchmarkTest00057.py`) and never uses `usedforsecurity=True` for a real security purpose, so the weak hash is not a vulnerability in this context.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00057.py",
+          "start_line": 50,
+          "end_line": 70
+        },
+        {
+          "path": "testcode/BenchmarkTest00057.py",
+          "start_line": 71,
+          "end_line": 76
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00058.py-65-B324",
+      "test_id": "B324",
+      "path": "testcode/BenchmarkTest00058.py",
+      "line": 65,
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "The alert is a SHA1 usage, but here it hashes `input` only to store a digest in `testfiles/passwordFile.txt` and include it in a response; there is no security-sensitive use of the hash as a verifier, signature, or integrity protection. The value being hashed comes from `bar`, which is set from the constant `'safe!'` at line 43 and then copied through the config parser from the fixed key `keyA-69840` set to `'a_Value'` at line 46, so the sink is not protecting attacker-controlled data. This is test code and the SHA1 result is just written out, making the weak algorithm non-security-relevant in this context.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00058.py",
+          "start_line": 43,
+          "end_line": 48
+        },
+        {
+          "path": "testcode/BenchmarkTest00058.py",
+          "start_line": 53,
+          "end_line": 70
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00059.py-63-B324",
+      "test_id": "B324",
+      "path": "testcode/BenchmarkTest00059.py",
+      "line": 63,
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "label": 0,
+      "status": "classified",
+      "rationale": "Line 63 uses `hashlib.sha1()` in `testcode/BenchmarkTest00059.py`, but this is benchmark/test code rather than production logic. The data being hashed comes from the request cookie via `param` and `bar` (lines 38-46), then is written to a test file and echoed back (lines 67-71), so the weak hash is not protecting a real security boundary here.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00059.py",
+          "start_line": 38,
+          "end_line": 46
+        },
+        {
+          "path": "testcode/BenchmarkTest00059.py",
+          "start_line": 63,
+          "end_line": 71
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00060.py-60-B324",
+      "test_id": "B324",
+      "path": "testcode/BenchmarkTest00060.py",
+      "line": 60,
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "Line 60 uses hashlib.sha1() on data derived from request.cookies.get('BenchmarkTest00060', ...) at line 39, so attacker-controlled input is hashed with a weak SHA1 algorithm. The hash result is written to a file at lines 64-65, making this a security-relevant use rather than a harmless checksum.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00060.py",
+          "start_line": 39,
+          "end_line": 39
+        },
+        {
+          "path": "testcode/BenchmarkTest00060.py",
+          "start_line": 60,
+          "end_line": 65
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00073.py-54-B307",
+      "test_id": "B307",
+      "path": "testcode/BenchmarkTest00073.py",
+      "line": 54,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "Line 39 reads the `BenchmarkTest00073` cookie and line 42-44 splice that attacker-controlled value into `bar`, which is then passed to `eval(bar)` on line 54. The preceding check on line 46 only enforces that the constructed text looks like a quoted Python string literal; it does not remove the use of `eval` on input derived from a client cookie, so code execution remains plausibly reachable.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00073.py",
+          "start_line": 39,
+          "end_line": 46
+        },
+        {
+          "path": "testcode/BenchmarkTest00073.py",
+          "start_line": 52,
+          "end_line": 55
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00074.py-51-B102",
+      "test_id": "B102",
+      "path": "testcode/BenchmarkTest00074.py",
+      "line": 51,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "Line 39 reads the `BenchmarkTest00074` cookie from the request, line 47 stores that tainted value into `conf90091`, line 48 copies it back into `bar`, and line 51 executes `bar` with `exec`. There is no validation or sanitization before the sink, so attacker-controlled cookie data can reach code execution.",
+      "evidence": [
+        {
+          "path": "testcode/BenchmarkTest00074.py",
+          "start_line": 39,
+          "end_line": 51
+        }
+      ]
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00075.py-53-B102",
+      "test_id": "B102",
+      "path": "testcode/BenchmarkTest00075.py",
+      "line": 53,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00078.py-53-B301",
+      "test_id": "B301",
+      "path": "testcode/BenchmarkTest00078.py",
+      "line": 53,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "owasp-benchmark-python-testcode-BenchmarkTest00099.py-46-B608",
+      "test_id": "B608",
+      "path": "testcode/BenchmarkTest00099.py",
+      "line": 46,
+      "severity": "MEDIUM",
+      "confidence": "LOW",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    }
+  ]
+}

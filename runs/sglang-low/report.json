@@ -1,0 +1,314 @@
+{
+  "target": {
+    "input": "targets/sglang",
+    "commit": "bbe9c7eeb520b0a67e92d133dfc137a3688dc7f2"
+  },
+  "scan": {
+    "bandit_version": "1.9.4",
+    "min_severity": "MEDIUM",
+    "alert_count": 21
+  },
+  "budget": {
+    "max_tokens": 50000,
+    "used_tokens": 40941,
+    "exhausted": true
+  },
+  "run_id": "sglang-20261010T202643-b18c4d",
+  "terminal_status": "budget_exhausted",
+  "model": {
+    "provider": "openai",
+    "name": "gpt-5.4-mini"
+  },
+  "alerts": [
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-distributed-group_coordinator.py-532-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/distributed/group_coordinator.py",
+      "line": 532,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "Line 532 unpickles bytes received over torch.distributed from another rank (`recv_object` reads a size and then `object_tensor` from `self.ranks[src]` before calling `pickle.loads`). Although the sender rank is checked against the claimed source, the payload itself is still deserialized with pickle, so a malicious or compromised peer rank can trigger arbitrary object construction during deserialization.",
+      "evidence": [
+        {
+          "path": "python/sglang/multimodal_gen/runtime/distributed/group_coordinator.py",
+          "start_line": 500,
+          "end_line": 532
+        }
+      ]
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-distributed-utils.py-116-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+      "line": 116,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "The alert is a real deserialization sink: line 116 calls `pickle.loads` on bytes fetched from the shared `store` at `send_to/{self.rank}/{self.recv_src_counter[src]}`. Those bytes are produced by `send_obj` via `pickle.dumps(obj)` (lines 95-101), so any process that can write to the backing TCPStore can supply a pickle payload that will be executed on load. This code does not validate or restrict the stored value before deserializing it.",
+      "evidence": [
+        {
+          "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+          "start_line": 95,
+          "end_line": 101
+        },
+        {
+          "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+          "start_line": 114,
+          "end_line": 120
+        },
+        {
+          "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+          "start_line": 183,
+          "end_line": 194
+        }
+      ]
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-distributed-utils.py-136-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+      "line": 136,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": 1,
+      "status": "classified",
+      "rationale": "The alert is a real deserialization sink: line 136 calls `pickle.loads(self.store.get(key))`, and the stored bytes come from other ranks via `broadcast_obj`/`send_obj` using the same pickle format (lines 95-100 and 127-130). The code does not validate or restrict the content before unpickling, so any process that can write to the shared TCPStore can cause arbitrary pickle deserialization in receivers.",
+      "evidence": [
+        {
+          "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+          "start_line": 95,
+          "end_line": 100
+        },
+        {
+          "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+          "start_line": 122,
+          "end_line": 137
+        },
+        {
+          "path": "python/sglang/multimodal_gen/runtime/distributed/utils.py",
+          "start_line": 183,
+          "end_line": 188
+        }
+      ]
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-loader-component_loaders-component_loader.py-270-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/loader/component_loaders/component_loader.py",
+      "line": 270,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-loader-component_loaders-component_loader.py-282-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/loader/component_loaders/component_loader.py",
+      "line": 282,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-loader-component_loaders-component_loader.py-294-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/loader/component_loaders/component_loader.py",
+      "line": 294,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-loader-weight_utils.py-235-B614",
+      "test_id": "B614",
+      "path": "python/sglang/multimodal_gen/runtime/loader/weight_utils.py",
+      "line": 235,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-managers-scheduler.py-276-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/managers/scheduler.py",
+      "line": 276,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-models-encoders-bert.py-22-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/models/encoders/bert.py",
+      "line": 22,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-models-encoders-bert.py-25-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/models/encoders/bert.py",
+      "line": 25,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-models-registry.py-186-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/models/registry.py",
+      "line": 186,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-models-vision_utils.py-107-B113",
+      "test_id": "B113",
+      "path": "python/sglang/multimodal_gen/runtime/models/vision_utils.py",
+      "line": 107,
+      "severity": "MEDIUM",
+      "confidence": "LOW",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-models-vision_utils.py-160-B113",
+      "test_id": "B113",
+      "path": "python/sglang/multimodal_gen/runtime/models/vision_utils.py",
+      "line": 160,
+      "severity": "MEDIUM",
+      "confidence": "LOW",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-pipelines_core-stages-model_specific_stages-qwen_image_layered.py-121-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/pipelines_core/stages/model_specific_stages/qwen_image_layered.py",
+      "line": 121,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-scheduler_client.py-29-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/scheduler_client.py",
+      "line": 29,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-scheduler_client.py-166-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/scheduler_client.py",
+      "line": 166,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-utils-distributed.py-57-B301",
+      "test_id": "B301",
+      "path": "python/sglang/multimodal_gen/runtime/utils/distributed.py",
+      "line": 57,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-utils-hf_diffusers_utils.py-794-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/utils/hf_diffusers_utils.py",
+      "line": 794,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-python-sglang-multimodal_gen-runtime-utils-hf_diffusers_utils.py-839-B615",
+      "test_id": "B615",
+      "path": "python/sglang/multimodal_gen/runtime/utils/hf_diffusers_utils.py",
+      "line": 839,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-scripts-playground-replay_request_dump.py-57-B301",
+      "test_id": "B301",
+      "path": "scripts/playground/replay_request_dump.py",
+      "line": 57,
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    },
+    {
+      "alert_id": "sglang-scripts-playground-replay_request_dump.py-83-B113",
+      "test_id": "B113",
+      "path": "scripts/playground/replay_request_dump.py",
+      "line": 83,
+      "severity": "MEDIUM",
+      "confidence": "LOW",
+      "label": null,
+      "status": "budget_exhausted",
+      "rationale": "",
+      "evidence": []
+    }
+  ]
+}

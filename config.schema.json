@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/comse6998-019/hw1-agent-architectures/config.schema.json",
+  "title": "HW1 config.toml",
+  "description": "Validates the config file your agent reads (--config), parsed from TOML to JSON. [scan] must equal one of the three staff blocks in briefs/scan/ exactly. [model] and [budget] have required keys; you may add other keys and tables for your own settings. Never put secrets in this file.",
+  "type": "object",
+  "required": [
+    "scan",
+    "model",
+    "budget"
+  ],
+  "properties": {
+    "scan": {
+      "description": "Exactly one of the required blocks from briefs/scan/, unchanged.",
+      "enum": [
+        {
+          "paths": [
+            "radicale"
+          ],
+          "exclude": [
+            "radicale/tests"
+          ],
+          "min_severity": "MEDIUM",
+          "bandit_version": "1.9.4"
+        },
+        {
+          "paths": [
+            "python/sglang/multimodal_gen/runtime",
+            "scripts/playground/replay_request_dump.py"
+          ],
+          "exclude": [],
+          "min_severity": "MEDIUM",
+          "bandit_version": "1.9.4"
+        },
+        {
+          "paths": [
+            "testcode/BenchmarkTest000*.py"
+          ],
+          "exclude": [],
+          "min_severity": "MEDIUM",
+          "bandit_version": "1.9.4"
+        }
+      ]
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "provider",
+        "name"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Your choice of provider."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The exact model name, as your README states it."
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "max_tokens",
+        "output_allowance",
+        "max_steps"
+      ],
+      "properties": {
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Token budget for the whole run, across all alerts: the sum of input + output over every model call."
+        },
+        "output_allowance": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Max output tokens for each model call, sent to the provider."
+        },
+        "max_steps": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Failsafe on steps, separate from the token budget."
+        }
+      }
+    }
+  }
+}

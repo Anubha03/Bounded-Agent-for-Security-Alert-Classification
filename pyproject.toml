@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hw1-agent"
+version = "1.0.0"
+description = "HW1: A Bounded Agent for Bandit Alerts Classification."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "bandit==1.9.4",
+    "jsonschema>=4.23",
+    "openai>=1.99",
+]
+
+[project.scripts]
+hw1-agent = "hw1_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

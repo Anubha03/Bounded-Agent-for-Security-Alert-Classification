@@ -1,0 +1,12 @@
+targets/
+.venv/
+__pycache__/
+*.egg-info/
+.env
+*.json.tmp
+.DS_Store
+
+*.py[cod]
+.env.*
+!.env.example
+.ipynb_checkpoints/

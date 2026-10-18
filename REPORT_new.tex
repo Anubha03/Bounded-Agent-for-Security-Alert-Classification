@@ -1,0 +1,984 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\documentclass[
+  10pt,
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=0.68in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage{setspace}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{longtable,booktabs,array}
+\usepackage{caption}
+\captionsetup[table]{skip=6pt}
+\newcounter{none} % for unnumbered tables
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{fvextra}
+\RecustomVerbatimEnvironment{verbatim}{Verbatim}{breaklines=true,breakanywhere=true,fontsize=\footnotesize}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\footnotesize}
+\setlength{\parskip}{0.35em}
+\setlength{\emergencystretch}{3em}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+% fallback for those not using the hyperref driver hyperxmp:
+\makeatletter
+\@ifundefined{xmpquote}{\newcommand{\xmpquote}[1]{#1}}{}
+\makeatother
+\hypersetup{
+  pdftitle={HW1 design report: a bounded agent for Bandit alert classification},
+  colorlinks=true,
+  linkcolor={blue},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\title{HW1 design report: a bounded agent for Bandit alert
+classification}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\setstretch{1.04}
+Implementation: \texttt{src/hw1\_agent/}. Run instructions:
+\url{README.md}. Section numbers follow the rubric. All numbers in this
+report are measured from the committed traces in \texttt{runs/}.
+
+\section{Implementation at a glance}\label{implementation-at-a-glance}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Piece
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Choice
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Language / runtime & Python 3.12, Bandit 1.9.4 (invoked as
+\texttt{python\ -m\ bandit} from the same interpreter) \\
+Model & OpenAI \texttt{gpt-5.4-mini} via Chat Completions with function
+tools, \texttt{reasoning\_effort\ =\ "none"},
+\texttt{tool\_choice\ =\ "required"} \\
+Agent shape & one ReAct-style loop per alert, written as an explicit
+hand-rolled state machine (\texttt{graph.py}), no agent framework \\
+Model-facing tools & \texttt{read\_file}, \texttt{search\_code},
+\texttt{list\_dir}, plus \texttt{submit\_verdict} to finish an alert \\
+Budget & provider-reported
+\texttt{prompt\_tokens\ +\ completion\_tokens}, gated before every call
+with a byte-based upper bound on the next input \\
+Modules & \texttt{cli} \ensuremath{\rightarrow} \texttt{config} \ensuremath{\rightarrow} \texttt{graph} (nodes, budget
+gate, failsafes, settlement, crash handling) using \texttt{scanner},
+\texttt{workspace}, \texttt{tools}, \texttt{dispatcher},
+\texttt{provider}, \texttt{trace}, \texttt{report} \\
+\end{longtable}
+}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\section{A1. Behaviours}\label{a1.-behaviours}
+
+\textbf{For each alert the agent:}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Hides every other OWASP \texttt{BenchmarkTest*} case (A7) and builds a
+  context message: the Bandit fields (test id, CWE, severity,
+  confidence, issue text) plus \ensuremath{\pm}25 numbered lines around the flagged
+  line, read from the disposable copy.
+\item
+  Asks the model to trace the value that reaches the sink back to its
+  source. Is it attacker-influenced or constant, trusted or sanitised,
+  and on which paths? The model proposes \texttt{read\_file},
+  \texttt{search\_code} or \texttt{list\_dir} calls, and the runtime
+  executes them.
+\item
+  Accepts a \texttt{submit\_verdict} only after the runtime validates
+  it. The label must be 0 or 1, the rationale must cite at least one
+  line, and every evidence range must lie in a file the model may read
+  and inside lines the runtime actually showed the model for this alert.
+\item
+  Settles the alert's report row exactly once (\texttt{classified},
+  \texttt{error} or \texttt{budget\_exhausted}) and moves on to the next
+  alert.
+\end{enumerate}
+
+\textbf{The agent must never:}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Run target code.} Nothing from the target is imported,
+  installed or executed. Bandit is a static analyser, invoked as
+  \texttt{python\ -m\ bandit} with an argument list (no shell). The
+  tools only read bytes.
+\item
+  \textbf{Write to the target.} All tool access goes to a disposable
+  copy. Bandit writes its JSON to a temp directory outside the target.
+  There are no write tools.
+\item
+  \textbf{Invent observations.} Only the dispatcher writes observations
+  (tool messages). The model's text is never treated as an observation.
+  Evidence must be a subset of lines the runtime displayed, so a verdict
+  that cites code the model never saw is rejected.
+\item
+  \textbf{Read withheld material}: \texttt{.git/},
+  \texttt{expectedresults*.csv}, or another OWASP case (A7).
+\item
+  \textbf{Invent usage.} The budget charges only provider-reported
+  counters. A call that fails before usage is returned records no usage
+  and no \texttt{model\_call} event.
+\end{itemize}
+
+\section{A2. State machine}\label{a2.-state-machine}
+
+\begin{verbatim}
+stateDiagram-v2
+    [*] --> prepare
+    prepare --> discover
+    discover --> select: bandit ok
+    discover --> stop: bandit failed / provider unusable
+    select --> triage: alert pending (runtime)
+    select --> finalize: queue empty (runtime)
+    triage --> gate
+    gate --> classify: checks pass (runtime)
+    gate --> settle: turn limit (runtime)
+    gate --> stop: max_steps / budget_exhausted (runtime)
+    classify --> dispatch: tool calls (model)
+    classify --> validate: submit_verdict alone (model)
+    classify --> gate: no tool call \ensuremath{\rightarrow} nudge (runtime)
+    classify --> settle: provider error (runtime)
+    classify --> stop: fatal provider error (runtime)
+    dispatch --> gate
+    dispatch --> stop: no_progress / max_steps (runtime)
+    validate --> settle: accepted (runtime)
+    validate --> gate: rejected (runtime)
+    validate --> stop: no_progress (runtime)
+    settle --> select
+    stop --> finalize
+    finalize --> [*]
+\end{verbatim}
+
+Any uncaught exception, at any node, goes to the crash handler
+(\texttt{Agent.\_crash}). It settles every unsettled alert as
+\texttt{error}, writes \texttt{report.json}, and writes the single
+\texttt{terminal} event (\texttt{fatal\_error}).
+
+\section{A3. Nodes and edges}\label{a3.-nodes-and-edges}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Node
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Does
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Outgoing edge(s)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Kind
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Decided by
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{prepare} & resolve commit, open the workspace, build the
+provider & \ensuremath{\rightarrow} \texttt{discover} & fixed & N/A \\
+\texttt{discover} & Bandit \texttt{tool\_request}/\texttt{tool\_result},
+normalise, sort, assign ids & \ensuremath{\rightarrow} \texttt{select} / \texttt{stop} &
+conditional & runtime \\
+\texttt{select} & pick the next unsettled alert & \ensuremath{\rightarrow} \texttt{triage} /
+\texttt{finalize} & conditional & runtime (\texttt{routing\ triage} /
+\texttt{finalize}) \\
+\texttt{triage} & per-case withholding, context message,
+\texttt{state\_change} & \ensuremath{\rightarrow} \texttt{gate} & fixed & N/A \\
+\texttt{gate} & turn limit, then \texttt{max\_steps}, then token budget
+& \ensuremath{\rightarrow} \texttt{classify} / \texttt{settle} / \texttt{stop} & conditional &
+runtime (\texttt{routing\ turn\_limit} / \texttt{max\_steps} /
+\texttt{budget\_exhausted}) \\
+\texttt{classify} & one model call with \texttt{tool\_choice="required"}
+(forced \texttt{submit\_verdict} on the last turn), \texttt{model\_call}
+event with reported usage & \ensuremath{\rightarrow} \texttt{dispatch} / \texttt{validate} &
+conditional & \textbf{model} (\texttt{routing\ tools} /
+\texttt{submit}) \\
+& & \ensuremath{\rightarrow} \texttt{gate} (nudge) / \texttt{settle} (error) / \texttt{stop}
+(fatal) & conditional & runtime (\texttt{no\_tool\_call} /
+\texttt{error} / \texttt{fatal\_error}) \\
+\texttt{dispatch} & run each requested tool through the dispatcher & \ensuremath{\rightarrow}
+\texttt{gate} & fixed (default) & N/A \\
+& & \ensuremath{\rightarrow} \texttt{stop} & conditional & runtime (\texttt{no\_progress} /
+\texttt{max\_steps}) \\
+\texttt{validate} & check the verdict & \ensuremath{\rightarrow} \texttt{settle} /
+\texttt{gate} / \texttt{stop} & conditional & runtime (\texttt{settle} /
+\texttt{reject\_verdict} / \texttt{no\_progress}) \\
+\texttt{settle} & write the row, one \texttt{state\_change} with
+\texttt{alert\_status} + \texttt{label}, restore withheld case files & \ensuremath{\rightarrow}
+\texttt{select} & fixed & N/A \\
+\texttt{stop} & settle every remaining alert
+(\texttt{budget\_exhausted}, or \texttt{error} for the other stops) & \ensuremath{\rightarrow}
+\texttt{finalize} & fixed & N/A \\
+\texttt{finalize} & write \texttt{report.json}, then the one
+\texttt{terminal} event & end & fixed & N/A \\
+\end{longtable}
+}
+
+Every conditional edge taken writes exactly one \texttt{routing} event
+with \texttt{by}. Fixed and default edges are not traced. The model
+chooses only between investigating (\texttt{tools}) and finishing
+(\texttt{submit}). Every other transition is the runtime's. The
+\texttt{no\_tool\_call} nudge edge is a fallback: since
+\texttt{tool\_choice} became \texttt{"required"} (see
+\emph{Implementation path}), it fired 0 times across the 200 model calls
+of the six runs.
+
+\section{A4. Agent state}\label{a4.-agent-state}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Field
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Reducer
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Lifetime
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Writer
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Model sees?
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{alerts} (report rows: status, label, rationale, evidence) & set
+once per alert in \texttt{\_settle} (a second write raises) & run &
+runtime (\texttt{settle}, \texttt{stop}, crash handler) & no \\
+\texttt{queue} (unsettled alerts) & remove on settle & run & runtime &
+no \\
+\texttt{usage} (\texttt{input}, \texttt{output}) & add, from
+provider-reported counters & run & runtime (\texttt{classify}) & no \\
+trace \texttt{usage} mirror (incl.~\texttt{cache\_read}) & add, from
+written \texttt{model\_call} events only & run & \texttt{Trace.event} &
+no \\
+\texttt{steps\_used} & add 1 per model call and per tool execution & run
+& runtime (\texttt{classify}, \texttt{dispatch}) & no \\
+\texttt{no\_progress\_streak} & reset to 0 on progress or settlement,
+else +1 per turn & run & runtime & no \\
+\texttt{provider\_failures} & +1 per failed call, reset on success & run
+& runtime & no \\
+\texttt{first\_call\_input} & set once (first reported first-turn input)
+& run & runtime & no \\
+\texttt{stop} (status, reason) & set once & run & runtime & no \\
+\texttt{session.messages} & append & alert & runtime
+(system/context/nudges/tool results) + model (its own assistant turns) &
+\textbf{yes} \\
+\texttt{session.observed} (path \ensuremath{\rightarrow} line numbers shown) & union & alert &
+dispatcher / triage & no \\
+\texttt{session.seen\_requests} (tool+args fingerprints) & union & alert
+& dispatcher & no \\
+\texttt{session.turns} & add & alert & runtime & no (except the
+final-turn instruction) \\
+\texttt{session.last\_input}, \texttt{last\_bytes} & overwrite & alert &
+runtime & no \\
+\texttt{session.pending\_reply} & overwrite & one turn & runtime
+(\texttt{classify}) & it is the model's own reply \\
+workspace \texttt{active\_case}, stash & set per alert, restored at
+settle & alert & workspace & no \\
+\end{longtable}
+}
+
+The model never writes state directly. Its only outputs are proposals,
+tool calls and verdicts, and the runtime validates each one before
+anything changes.
+
+\section{A5. Tools}\label{a5.-tools}
+
+All tools take repo-relative POSIX paths and go through
+\texttt{Workspace.resolve} (A7) before touching disk. A refusal comes
+back as an observation beginning \texttt{REFUSED:} with a
+\texttt{tool\_result\ ok=false\ error=\ldots{}} event. It never raises. The
+dispatcher refuses an unknown tool name, arguments that are not a JSON
+object, arguments that fail the tool's JSON Schema (wrong type, missing
+or extra keys), and an exact repeat of an earlier request for the same
+alert. Results are capped at 12,000 characters. On truncation, only the
+lines still visible count as observed.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tool
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Arguments
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Returns
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Limits
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Refusals
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{read\_file} & \texttt{path}, \texttt{start\_line\ \ensuremath{\geq}\ 1},
+\texttt{end\_line\ \ensuremath{\geq}\ start\_line} & numbered lines +
+\texttt{{[}file\ has\ N\ lines;\ showing\ a-b{]}} & \ensuremath{\leq} 200 lines per
+call; lines \textgreater{} 400 chars truncated & path refused (absolute,
+\texttt{..}, outside the copy, withheld); not a file; binary;
+\texttt{start\_line} past EOF;
+\texttt{end\_line\ \textless{}\ start\_line} \\
+\texttt{search\_code} & \texttt{pattern} (literal, 1--200 chars),
+\texttt{path} (default \texttt{.}), \texttt{glob} (file-name pattern,
+default \texttt{*.py}), \texttt{case\_sensitive} &
+\texttt{path:line:\ text} hits & \ensuremath{\leq} 50 hits; files \textgreater{} 2 MB
+skipped; \ensuremath{\leq} 30,000 files scanned; literal match only (no regex, so no
+ReDoS) & bad pattern/glob; path refused or missing. Withheld files are
+silently skipped. \\
+\texttt{list\_dir} & \texttt{path} & sorted entries, dirs end in
+\texttt{/} & \ensuremath{\leq} 200 entries & path refused; not a directory. Withheld
+entries are not listed. \\
+\texttt{submit\_verdict} (finish) & \texttt{label\ \ensuremath{\in}\ \{0,1\}},
+\texttt{rationale}, \texttt{evidence{[}1..5{]}} of
+\texttt{\{path,start\_line,end\_line\}} & Ends the alert & ranges \ensuremath{\leq} 200
+lines; rationale stored up to 3,000 chars & rejected if: called together
+with other tools; schema fails; rationale empty or cites no line;
+evidence path refused or not a file; any cited line was never shown to
+the model \\
+\end{longtable}
+}
+
+Bandit is the runtime's discovery tool, traced as
+\texttt{tool\_request}/\texttt{tool\_result} with
+\texttt{tool:\ "bandit"}. The model cannot call it.
+
+\section{A6. Start, stop and
+termination}\label{a6.-start-stop-and-termination}
+
+\textbf{Start.} The CLI parses \texttt{-\/-input/-\/-output/-\/-config}.
+The config must parse as TOML and validate against
+\texttt{config.schema.json}. If it does not, the run never starts and
+the trace ends \texttt{config\_invalid}. \texttt{{[}agent{]}} keys
+(\texttt{max\_turns\_per\_alert}, \texttt{no\_progress\_limit},
+\texttt{request\_timeout\_s}) are optional.
+
+\textbf{Terminal statuses.} Closed and mutually exclusive. Exactly one
+is written, as the last event.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Status
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Trigger
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Rows still unsettled become
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{completed} & every alert settled by the agent loop & N/A \\
+\texttt{budget\_exhausted} & budget gate:
+\texttt{required\ \textgreater{}\ max\_tokens\ \ensuremath{-}\ used} before a model
+call & \texttt{budget\_exhausted}, \texttt{label:\ null} \\
+\texttt{max\_steps} &
+\texttt{steps\_used\ +\ 1\ \textgreater{}\ max\_steps} before a model
+call or a tool execution & \texttt{error} (``run stopped
+(max\_steps)'') \\
+\texttt{no\_progress} & \texttt{no\_progress\_limit} consecutive model
+turns with no new observation: no tool call, all requests refused or
+duplicated, or verdict rejected & \texttt{error} \\
+\texttt{fatal\_error} & uncaught exception, Bandit failure, unusable
+provider (missing key, auth, unknown model, invalid parameter, quota),
+or 3 consecutive failed calls & \texttt{error} \\
+\texttt{config\_invalid} & config rejected before any scan or model call
+& (no rows) \\
+\end{longtable}
+}
+
+\textbf{Precedence} is fixed by where each check runs. A crash pre-empts
+everything. In \texttt{gate}, \texttt{max\_steps} is checked before the
+budget. \texttt{no\_progress} is evaluated after a turn's observations.
+The first check to fire stops the run, so two statuses can never both
+apply.
+
+\textbf{Budget policy.}
+
+\begin{itemize}
+\tightlist
+\item
+  \emph{Charge}: \texttt{used\ =\ \ensuremath{\Sigma}\ (input\ +\ output)} over
+  \texttt{model\_call} events, as reported by the provider. For OpenAI,
+  \texttt{input\ =\ prompt\_tokens} and
+  \texttt{output\ =\ completion\_tokens}, which includes reasoning
+  tokens.
+  \texttt{cache\_read\ =\ prompt\_tokens\_details.cached\_tokens} is
+  recorded and never charged. OpenAI reports no cache-write counter.
+  \texttt{report.budget.used\_tokens} is computed from the trace's own
+  mirror of the \texttt{model\_call} events, so it equals the trace sum
+  by construction.
+\item
+  \emph{Output allowance}: \texttt{budget.output\_allowance} is sent as
+  \texttt{max\_completion\_tokens} on every call.
+\item
+  \emph{When it is checked}: in \texttt{gate}, before every model call.
+  Required = \texttt{projected\_input\ +\ output\_allowance}, and the
+  call is made only if \texttt{required\ \ensuremath{\leq}\ max\_tokens\ \ensuremath{-}\ used}.
+\item
+  \emph{Projection} (gate only, never charged): an upper bound built
+  from provider numbers. A BPE token covers at least one byte, so the
+  UTF-8 bytes added since the previous call bound the tokens added:
+  \texttt{projected\ =\ last\ reported\ input\ +\ bytes\ added\ +\ 16/message}.
+  A new alert's first call uses the first reported first-turn input plus
+  the new alert message's bytes. Before any report exists, it uses the
+  whole request's bytes. Because the projection is an upper bound and
+  output is capped by the allowance, \texttt{used\ \ensuremath{\leq}\ max\_tokens}
+  always holds.
+\item
+  \emph{At the cutoff}: a \texttt{routing} event
+  \texttt{budget\_exhausted} by \texttt{runtime} records
+  \texttt{remaining} and \texttt{required}. The current and all later
+  alerts get \texttt{budget\_exhausted} rows (one \texttt{state\_change}
+  each). Then \texttt{report.json} is written with
+  \texttt{exhausted:\ true}, followed by
+  \texttt{terminal\ budget\_exhausted}.
+\end{itemize}
+
+\textbf{Per-alert bound.} At most \texttt{max\_turns\_per\_alert} (8)
+model calls per alert. Every call is sent with
+\texttt{tool\_choice\ =\ "required"}, so each turn is either an
+investigation or a verdict. On the last one the runtime forces
+\texttt{tool\_choice\ =\ submit\_verdict}. If that verdict is still
+rejected, the alert settles \texttt{error} and the run continues. In the
+real runs this forced turn was used once
+(\texttt{radicale/storage/multifilesystem/lock.py:102}, B602: 7
+investigation calls, then the forced verdict).
+
+\section{A7. Workspace and
+withholding}\label{a7.-workspace-and-withholding}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Withheld
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Targets
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Why
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+How
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Restored
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{.git/} & all & history may contain commits after the pin,
+including fixes & never copied (\texttt{copytree(ignore=.git)});
+\texttt{resolve} refuses any \texttt{.git} component & nothing moved;
+the original is untouched \\
+\texttt{expectedresults*.csv} & OWASP (rule applies everywhere) & the
+answer key & moved from the copy into a sibling stash
+(\texttt{repo-withheld/}) for the whole run; \texttt{resolve} refuses
+the name & moved back on workspace exit, then the copy is deleted \\
+every \texttt{BenchmarkTest*} file except the current case's files
+(\texttt{.py} and its
+\path{templates/web/*/BenchmarkTest<id>.html})
+& OWASP & each case has a safe twin, so the answer is one grep away &
+moved to the stash in \texttt{triage} for that alert; \texttt{resolve}
+refuses non-active case names & moved back in \texttt{settle}, and on
+exit \\
+\end{longtable}
+}
+
+\textbf{One path check.} \texttt{Workspace.resolve(path)} is the only
+route from a tool argument to the file system. It refuses non-strings,
+NUL bytes, absolute paths (including drive letters), any \texttt{..}
+component, withheld names, and anything whose fully resolved path, with
+symlinks followed, lies outside the copy, or whose resolved target is
+withheld. \texttt{search\_code} and \texttt{list\_dir} call
+\texttt{resolve} on every file or entry they would return, so withheld
+files are invisible to them too, not only to direct reads. Discovery
+(Bandit) scans the original \texttt{-\/-input} in full, as required, and
+never writes to it. \texttt{helpers/} is not withheld.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\section{Implementation path and
+changes}\label{implementation-path-and-changes}
+
+We built the agent offline first and only then pointed it at the real
+model. Each change below was driven by a concrete failure, and the trace
+showed what went wrong.
+
+\textbf{1. Offline build.} We implemented and checked the components in
+this order: config validation, then the Bandit wrapper (reproducing the
+brief's counts of 10 / 21 / 18 at the pinned commits), then the
+workspace and path check, the trace and report writers, and finally the
+graph. To exercise the graph without spending tokens we drove it with a
+scripted model and with a local stand-in for the OpenAI endpoint, and
+checked every run against the three schemas and the six trace
+invariants. Those development harnesses are not part of the submission.
+
+\textbf{2. Provider: OpenAI, and a budget gate without a tokenizer.} We
+use OpenAI because that is the API key we had. Chat Completions has no
+free endpoint for counting input tokens, and \texttt{tiktoken} downloads
+its encoding files at first use, which adds a network dependency. We
+kept the gate dependency-free instead: every BPE token covers at least
+one byte, so the UTF-8 bytes added to the conversation since the last
+provider-reported input are a hard upper bound on the tokens added (A6).
+The bound only gates calls. What is charged is always the provider's own
+\texttt{prompt\_tokens\ +\ completion\_tokens}.
+
+\textbf{3. Bandit version check.}
+\texttt{python\ -m\ bandit\ -\/-version} prints
+\texttt{\_\_main\_\_.py\ 1.9.4}, not \texttt{bandit\ 1.9.4}, so our
+first version check failed every scan. We now parse the version from the
+first line, whatever the program name, and still refuse anything other
+than the configured 1.9.4.
+
+\textbf{4. First real run: \texttt{fatal\_error} with 0 steps.} The
+provider could not be built because \texttt{OPENAI\_API\_KEY} was not
+set in that shell. Bandit still ran, all 10 Radicale alerts got
+\texttt{error} rows, and the trace ended with one
+\texttt{terminal\ fatal\_error}. This was an unplanned but real check of
+the fatal path.
+
+\textbf{5. \texttt{reasoning\_effort\ =\ "low"} was rejected.} The first
+call returned HTTP 400: \emph{``Function tools with reasoning\_effort
+are not supported for gpt-5.4-mini in /v1/chat/completions \ldots{} set
+reasoning\_effort to `none'\,''}. Because \texttt{provider.py}
+classifies a \texttt{BadRequestError} as fatal (it would repeat on every
+call), the run stopped after 1 step instead of failing all 10 alerts one
+by one. We set \texttt{reasoning\_effort\ =\ "none"} in both configs. We
+did not move to the Responses API, because that would have meant
+rewriting the provider for a model setting.
+
+\textbf{6. \texttt{no\_progress} on the first full OWASP run \ensuremath{\rightarrow}
+\texttt{tool\_choice\ =\ "required"}.} With reasoning off, the model
+often answered in prose instead of calling a tool. On
+\texttt{BenchmarkTest00012} it needed one nudge. On
+\texttt{BenchmarkTest00013} it read the case and
+\texttt{helpers/utils.py} and then replied four times in a row with
+\texttt{finish\_reason\ =\ stop} and no tool call. The no-progress
+detector fired as designed
+(\texttt{4\ consecutive\ turns\ without\ progress}), ending the run
+after 2 of 18 alerts. That trace was replaced when we re-ran all six
+runs, and the event sequence above is taken from it. The fault was in
+our request rather than the detector: with
+\texttt{tool\_choice\ =\ "auto"} the model is allowed to skip tools, but
+in this design every turn must be a tool call or a verdict. We changed
+it to \texttt{"required"}. After the change, every one of the 200 model
+calls across the six runs ended in a tool call, and the nudge path never
+fired. We then re-ran \textbf{all six} runs so that the committed
+outputs come from one version of the code.
+
+\textbf{7. Budgets.} \texttt{configs/full.toml} (1,500,000 tokens) was
+sized for SGLang, the largest target. It used at most 215,298.
+\texttt{configs/low.toml} (50,000) was kept because it cuts every target
+partway: Radicale after 3 of 10 alerts, SGLang after 3 of 21, and OWASP
+after 15 of 18.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\section{C2. Results}\label{c2.-results}
+
+Model: \texttt{gpt-5.4-mini} (\texttt{reasoning\_effort\ =\ "none"}).
+Each run's config is the corresponding file in
+\texttt{configs/targets/}.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1429}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1429}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1429}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1429}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1429}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1429}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 12\tabcolsep) * \real{0.1429}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+run
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+alerts
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+label 1
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+label 0
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+null
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+used / max tokens
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+terminal
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+radicale-full & 10 & 6 & 4 & 0 & 161304 / 1500000 & completed \\
+radicale-low & 10 & 0 & 3 & 7 & 37278 / 50000 & budget\_exhausted \\
+sglang-full & 21 & 13 & 8 & 0 & 215298 / 1500000 & completed \\
+sglang-low & 21 & 3 & 0 & 18 & 40941 / 50000 & budget\_exhausted \\
+owasp-full & 18 & 10 & 8 & 0 & 47336 / 1500000 & completed \\
+owasp-low & 18 & 6 & 9 & 3 & 44075 / 50000 & budget\_exhausted \\
+\end{longtable}
+}
+
+\textbf{OWASP precision / recall (full run):} TP=6, FP=4, FN=2, TN=6 \ensuremath{\rightarrow}
+precision 0.600, recall 0.750.
+
+\textbf{How the labels were used to refine the agent.} On the full OWASP
+run the agent labelled 12 of the 18 alerts correctly. We compared each
+wrong label with its rationale and trace, and the errors fall into three
+groups:
+
+\begin{itemize}
+\tightlist
+\item
+  \emph{A guard was seen but not trusted} (false positives:
+  \texttt{00073} B307, \texttt{00075} B102). Both rationales cite the
+  check on lines 46-50 that only lets a quoted string literal through,
+  yet still treat \texttt{eval}/\texttt{exec} as reachable from the
+  cookie. The model took ``the value comes from a cookie'' as enough,
+  even though the label definition says a value neutralised on every
+  path is a 0.
+\item
+  \emph{Parser defaults were assumed unsafe} (false positives:
+  \texttt{00017} B317 and B318). The model reasoned that a
+  cookie-controlled document reaching \texttt{xml.sax} and
+  \texttt{minidom} ``without defusing'' means XXE, without checking
+  whether those parsers resolve external entities by default.
+\item
+  \emph{Weak hashes were judged by how the digest is used} (false
+  negatives: \texttt{00058}, \texttt{00060}, B324). The model called
+  SHA-1 safe because the digest is only written to a file and gates no
+  security decision. In \texttt{00060} it also leaned on the
+  test/dev-only exemption because the file sits under
+  \texttt{testcode/}, which is true of every OWASP case. The benchmark
+  marks both as vulnerable.
+\end{itemize}
+
+We did \textbf{not} change the prompt in response to these errors. The
+safe-use criteria and the ``check every path'' instruction were already
+in the system prompt from the first run, and the errors above happened
+anyway. They show that the model applied those rules unevenly rather
+than that the rules were missing. The labels shaped our conclusions
+about where the next changes should go, and we deliberately did not
+apply them to these 18 cases, because that would only tune the agent to
+the development set while Radicale and SGLang are held out:
+
+\begin{itemize}
+\tightlist
+\item
+  ask the model to confirm that a guard can actually be bypassed before
+  labelling a guarded sink 1;
+\item
+  ask it to check a parser's defaults instead of assuming them;
+\item
+  apply the test/dev-only exemption only when the code really cannot run
+  in production, never because of a directory name;
+\item
+  state that a weak hash on a reachable path is a finding regardless of
+  what the digest is used for.
+\end{itemize}
+
+The changes we did make during development were to the runtime and the
+request (see \emph{Implementation path}, items 5 and 6), not to the
+labelling rules.
+
+\textbf{Other measured behaviour.}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1667}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+run
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+model calls
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+calls per classified alert (mean / max)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+tokens per classified alert (mean / max)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\texttt{cache\_read} share of input
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+wall time
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+radicale-full & 46 & 4.6 / 8 & 16,130 / 37,867 & 65\% & 45 s \\
+sglang-full & 73 & 3.5 / 7 & 10,252 / 29,012 & 45\% & 83 s \\
+owasp-full & 28 & 1.6 / 3 & 2,630 / 5,150 & 34\% & 51 s \\
+\end{longtable}
+}
+
+\begin{itemize}
+\tightlist
+\item
+  \emph{Investigation depth follows the target.} On OWASP, 10 of 18
+  alerts were decided from the \ensuremath{\pm}25-line triage context alone, with no
+  tool call, because each case is self-contained. Radicale and SGLang
+  needed cross-file reads: 5 of their 69 evidence ranges cite a file
+  other than the flagged one.
+\item
+  \emph{The runtime checks fired on real model output.} In
+  \texttt{owasp-low}, the first verdict for \texttt{BenchmarkTest00059}
+  was rejected because its rationale cited no line. The model
+  resubmitted on the next turn and the verdict was accepted. In
+  \texttt{sglang-full}, a \texttt{read\_file} on a directory path came
+  back as a refusal, and the model continued. The forced final turn was
+  used once (A6).
+\item
+  \emph{The budget gate is safe but conservative.}
+  \texttt{used\_tokens\ \ensuremath{\leq}\ max\_tokens} held in every run. At the
+  Radicale low cutoff, 12,722 tokens remained but the next call required
+  13,624: a projected input of 9,528 plus the 4,096 output allowance.
+  The largest output of any call across all six runs was 247 tokens
+  (mean 85), so most of the reserved headroom is the output allowance.
+  An allowance of about 1,024 would let the same budget cover more
+  alerts.
+\item
+  \emph{Charged input includes cached input.} OpenAI cached 34--65\% of
+  the prompt tokens on the full runs (\texttt{cache\_read}). We record
+  it and do not charge it separately, but \texttt{prompt\_tokens}
+  already includes it, so our charge is the conservative one.
+\item
+  \emph{Labels are not stable across runs.}
+  \texttt{radicale/sharing/files.py:131} (B301) was labelled 1 in
+  \texttt{radicale-full} and 0 in \texttt{radicale-low}. Within one run,
+  similar pickle-cache sinks also diverged: \texttt{cache.py:109} was
+  labelled 1, while \texttt{history.py:53} and \texttt{sync.py:79} were
+  labelled 0. We do not fix a sampling seed, and one run per
+  configuration cannot separate prompt effects from sampling noise.
+\item
+  \emph{Low-budget OWASP run:} 15 of 18 alerts were classified before
+  the cutoff, giving precision 0.50 and recall 0.50 (TP 3, FP 3, FN 3,
+  TN 6, 3 unlabelled).
+\end{itemize}
+
+\clearpage
+\textbf{Trajectory of one alert} (from
+\texttt{runs/radicale-full/trace.jsonl}):
+
+\begin{verbatim}
+sequenceDiagram
+    autonumber
+    participant R as Runtime (graph + dispatcher)
+    participant M as Model (classifier)
+    participant W as Workspace (disposable copy)
+    Note over R,W: radicale-radicale-sharing-files.py-131-B301
+    Note over R: route triage (by runtime)
+    R->>W: withhold other cases, read context 106-156
+    R->>M: alert + context
+    Note over M: step 36 in=1621 out=32
+    M-->>R: proposes read_file
+    Note over R: route tools (by model)
+    R->>W: read_file radicale/sharing/files.py lines 1-220
+    W-->>R: ok, 11062 chars
+    R->>M: observation
+    Note over M: step 40 in=4446 out=35
+    M-->>R: proposes search_code
+    Note over R: route tools (by model)
+    R->>W: search_code 'pickle.load' in . (*.py)
+    W-->>R: ok, 499 chars
+    R->>M: observation
+    Note over M: step 44 in=4638 out=32
+    M-->>R: proposes read_file
+    Note over R: route tools (by model)
+    R->>W: read_file radicale/sharing/files.py lines 200-390
+    W-->>R: ok, 10659 chars
+    R->>M: observation
+    Note over M: step 48 in=7222 out=174
+    M-->>R: proposes submit_verdict
+    Note over R: route submit (by model)
+    Note over R: verdict accepted
+    Note over R: route settle (by runtime)
+    Note over R: settled classified label=1
+\end{verbatim}
+
+\clearpage
+\section{C3. Limitations and
+alternatives}\label{c3.-limitations-and-alternatives}
+
+\textbf{Limitations of this design.}
+
+\begin{itemize}
+\tightlist
+\item
+  One ReAct-style loop per alert, so alerts run strictly one after
+  another. Latency is the sum of the per-alert loops: 45--83 s per full
+  run here.
+\item
+  The byte-based budget projection plus a 4,096-token output allowance
+  is safe but pessimistic. At the Radicale low cutoff it refused a call
+  with 12,722 tokens left, while no call ever produced more than 247
+  output tokens.
+\item
+  \texttt{no\_progress} and \texttt{max\_steps} end the whole run, as
+  the brief requires, even when only one alert is stuck. We saw this for
+  real: one alert answering in prose ended the first full OWASP run
+  after 2 of 18 alerts. \texttt{tool\_choice="required"} and the
+  per-alert turn cap with a forced final submit now keep one stuck alert
+  from triggering them in ordinary cases.
+\item
+  Labels are not reproducible from run to run (C2), and with a single
+  run per configuration the measured precision and recall carry sampling
+  noise.
+\item
+  \texttt{max\_steps} (600) never fired on a real run. The largest run
+  used 126 steps, so this failsafe is shown by its implementation (the
+  check in \texttt{gate} and \texttt{dispatch}) rather than by a
+  committed real trace.
+\item
+  The evidence check proves the model \emph{saw} the cited lines, not
+  that its reasoning about them is right.
+\item
+  The context is rebuilt from scratch for each alert. Nothing learned
+  about shared helpers carries over.
+\end{itemize}
+
+\textbf{Alternatives} (analysed, not built):
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+This agent (ReAct loop per alert)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Fixed workflow
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Plan-and-execute
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Supervisor / worker
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Shape & model chooses tools until it submits; runtime gates every step &
+runtime always does the same steps (context \ensuremath{\pm}N lines \ensuremath{\rightarrow} one classify
+call) & planner writes an investigation plan per alert; executor runs
+it; optional re-plan & supervisor routes alerts (or sub-questions) to
+specialised workers (e.g.~taint tracer, crypto-usage checker), then
+aggregates \\
+Cost & measured 1.6 (OWASP) to 4.6 (Radicale) calls per alert; grows
+with the transcript & lowest: 1 call per alert, fixed size & planner
+call + executor calls; re-planning adds more & highest: supervisor calls
++ several workers, each with its own context \\
+Latency & sequential turns per alert & lowest, and trivially parallel
+across alerts & plan is serial; plan steps can run in parallel & workers
+can run in parallel, but the supervisor serialises aggregation \\
+Coordination & none: one actor; runtime owns state & none & plan \ensuremath{\leftrightarrow}
+execution drift; must decide when to re-plan & hardest: hand-offs,
+shared state, conflicting worker verdicts \\
+Failure behaviour & local: bad requests become refusals; loops caught by
+duplicate refusal, turn cap and no-progress & cannot recover from
+missing context (e.g.~taint source in another file), so it fails
+silently with a wrong label & a wrong plan wastes the whole budget on
+irrelevant reads unless validated; re-planning adds loop risk & one
+failing worker can stall aggregation; errors compound across hand-offs;
+harder to keep the one-settlement-per-row invariant \\
+Fit here & good: alerts need a variable amount of cross-file reading &
+good for single-file OWASP cases, weak on Radicale/SGLang & useful for
+big repos (SGLang) where reading should be planned & probably overkill
+for 10--21 alerts \\
+\end{longtable}
+}
+
+\end{document}

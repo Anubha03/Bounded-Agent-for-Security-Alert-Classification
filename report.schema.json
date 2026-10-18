@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/comse6998-019/hw1-agent-architectures/report.schema.json",
+  "title": "HW1 report.json",
+  "description": "One row per in-scope Bandit alert. Rules the schema cannot express, and graders check: len(alerts) == scan.alert_count; rows ordered by plain string comparison of path, then line as an integer, then test_id; budget.used_tokens is exactly the budget charge: input + output as the provider reported them, summed over every model_call event in trace.jsonl; cache_read and cache_write are recorded when reported and never charged. path and every evidence path are repository-relative POSIX paths with no leading ./ (strip the ./ Bandit prints for explicitly listed files). Extra fields are allowed.",
+  "type": "object",
+  "required": ["target", "scan", "budget", "alerts"],
+  "properties": {
+    "target": {
+      "type": "object",
+      "required": ["input", "commit"],
+      "properties": {
+        "input": {"type": "string", "minLength": 1},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "scan": {
+      "type": "object",
+      "required": ["bandit_version", "min_severity", "alert_count"],
+      "properties": {
+        "bandit_version": {"const": "1.9.4"},
+        "min_severity": {"const": "MEDIUM"},
+        "alert_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": ["max_tokens", "used_tokens", "exhausted"],
+      "properties": {
+        "max_tokens": {"type": "integer", "minimum": 0},
+        "used_tokens": {"type": "integer", "minimum": 0},
+        "exhausted": {"type": "boolean"}
+      }
+    },
+    "alerts": {"type": "array", "items": {"$ref": "#/$defs/alert"}}
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": ["path", "start_line", "end_line"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "pattern": "^(?!\\./)[^/]"},
+        "start_line": {"type": "integer", "minimum": 1},
+        "end_line": {"type": "integer", "minimum": 1}
+      }
+    },
+    "alert": {
+      "type": "object",
+      "required": ["alert_id", "test_id", "path", "line", "severity", "confidence",
+                   "label", "status", "rationale", "evidence"],
+      "properties": {
+        "alert_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+        "test_id": {"type": "string", "pattern": "^B[0-9]{3}$"},
+        "path": {"type": "string", "minLength": 1, "pattern": "^(?!\\./)[^/]"},
+        "line": {"type": "integer", "minimum": 1},
+        "severity": {"enum": ["MEDIUM", "HIGH"]},
+        "confidence": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+        "label": {"enum": [0, 1, null]},
+        "status": {"enum": ["classified", "budget_exhausted", "error"]},
+        "rationale": {"type": "string"},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      },
+      "if": {"properties": {"status": {"const": "classified"}}},
+      "then": {
+        "properties": {
+          "label": {"enum": [0, 1]},
+          "rationale": {"minLength": 1},
+          "evidence": {"minItems": 1}
+        }
+      },
+      "else": {"properties": {"label": {"const": null}}}
+    }
+  }
+}

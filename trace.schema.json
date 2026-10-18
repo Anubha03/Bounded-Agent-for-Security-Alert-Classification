@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/comse6998-019/hw1-agent-architectures/trace.schema.json",
+  "title": "HW1 trace.jsonl event",
+  "description": "Validates ONE line of trace.jsonl. Every line must validate. Rules across lines are not expressible here and graders check them: step starts at 1 and increases by exactly 1; exactly one terminal event, last; each usage_total counter equals the sum of that counter over all model_call events, and report.json budget.used_tokens equals the sum of input + output over them; every report.json row has exactly one state_change with its alert_id, alert_status and label; every tool_request is immediately followed by its tool_result. Extra fields are allowed on any event, except inside usage and usage_total.",
+  "type": "object",
+  "required": ["step", "ts", "run_id", "alert_id", "kind"],
+  "properties": {
+    "step": {"type": "integer", "minimum": 1},
+    "ts": {"type": "number"},
+    "run_id": {"type": "string", "minLength": 1},
+    "alert_id": {
+      "description": "The alert this event belongs to, or null for a run-level event.",
+      "anyOf": [{"type": "string", "pattern": "^[A-Za-z0-9._-]+$"}, {"type": "null"}]
+    },
+    "kind": {"enum": ["model_call", "tool_request", "tool_result", "routing", "state_change", "terminal"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "model_call"}}},
+      "then": {
+        "required": ["role", "model", "usage"],
+        "properties": {
+          "role": {"type": "string", "minLength": 1},
+          "model": {"type": "string", "minLength": 1},
+          "usage": {"$ref": "#/$defs/usage"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "tool_request"}}},
+      "then": {
+        "required": ["tool", "args"],
+        "properties": {
+          "tool": {"type": "string", "minLength": 1},
+          "args": {"type": "object"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "tool_result"}}},
+      "then": {
+        "required": ["tool", "ok"],
+        "properties": {
+          "tool": {"type": "string", "minLength": 1},
+          "ok": {"type": "boolean"},
+          "error": {"type": "string", "minLength": 1}
+        },
+        "if": {"properties": {"ok": {"const": false}}},
+        "then": {"required": ["error"]}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "routing"}}},
+      "then": {
+        "required": ["decision", "by"],
+        "properties": {
+          "decision": {"type": "string", "minLength": 1},
+          "by": {"enum": ["model", "runtime"]}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "state_change"}}},
+      "then": {
+        "required": ["node"],
+        "properties": {
+          "node": {"type": "string", "minLength": 1},
+          "alert_status": {"enum": ["classified", "budget_exhausted", "error"]},
+          "label": {"enum": [0, 1, null]}
+        },
+        "dependentRequired": {"alert_status": ["label"], "label": ["alert_status"]},
+        "allOf": [
+          {
+            "if": {"required": ["alert_status"]},
+            "then": {"properties": {"alert_id": {"type": "string"}}}
+          },
+          {
+            "if": {"required": ["alert_status"], "properties": {"alert_status": {"const": "classified"}}},
+            "then": {"properties": {"label": {"enum": [0, 1]}}}
+          },
+          {
+            "if": {"required": ["alert_status"], "properties": {"alert_status": {"enum": ["budget_exhausted", "error"]}}},
+            "then": {"properties": {"label": {"const": null}}}
+          }
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "terminal"}}},
+      "then": {
+        "required": ["status", "usage_total"],
+        "properties": {
+          "status": {"type": "string", "minLength": 1},
+          "usage_total": {"$ref": "#/$defs/usage"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "usage": {
+      "description": "Token counters as the provider reported them. No summed total.",
+      "type": "object",
+      "required": ["input", "output"],
+      "properties": {
+        "input": {"type": "integer", "minimum": 0},
+        "output": {"type": "integer", "minimum": 0},
+        "cache_read": {"type": "integer", "minimum": 0},
+        "cache_write": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  }
+}
